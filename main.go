@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api"
 	"io/ioutil"
 	"log"
@@ -26,7 +27,7 @@ func main() {
 	setUpConfig()
 	bot, err := tgbotapi.NewBotAPI(config.Token)
 	if err != nil {
-		log.Panic(err)
+		log.Panic(err, fmt.Sprintf("\n token = %s", config.Token))
 	}
 
 	bot.Debug = false
