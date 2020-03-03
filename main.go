@@ -1,25 +1,25 @@
 package main
 
 import (
+	"encoding/json"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api"
-	"gopkg.in/yaml.v2"
+	"io/ioutil"
 	"log"
-	"os"
 )
 
 var config struct {
-	Token string `yaml:"token"`
+	Token string
 }
 
 func setUpConfig() {
-	r, err := os.Open("config.yaml")
+	f, err := ioutil.ReadFile("config.json")
 	if err != nil {
 		log.Panic(err)
 	}
-	if err := yaml.NewDecoder(r).Decode(&config); err != nil {
+	err = json.Unmarshal(f, &config)
+	if err != nil {
 		log.Panic(err)
 	}
-	r.Close()
 }
 
 func main() {
@@ -40,24 +40,26 @@ func main() {
 		log.Panic(err)
 	}
 	for update := range updates {
-		if update.Message == nil {
-			continue
-		}
-		if !update.Message.IsCommand() {
-			continue
-		}
-		var text string
-		switch update.Message.Command() {
-		case "next":
-			text = "next"
-		case "stat":
-			text = "stat"
-		case "drop":
-			text = "drop"
-		}
-		msg := tgbotapi.NewMessage(update.Message.Chat.ID, text)
-		if _, err := bot.Send(msg); err != nil {
-			log.Panic(err)
-		}
+		go func() {
+			if update.Message == nil {
+				return
+			}
+			if !update.Message.IsCommand() {
+				return
+			}
+			var text string
+			switch update.Message.Command() {
+			case "next":
+				text = "next"
+			case "stat":
+				text = "stat"
+			case "drop":
+				text = "drop"
+			}
+			msg := tgbotapi.NewMessage(update.Message.Chat.ID, text)
+			if _, err := bot.Send(msg); err != nil {
+				log.Panic(err)
+			}
+		}()
 	}
 }
