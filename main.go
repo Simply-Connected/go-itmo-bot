@@ -4,27 +4,31 @@ import (
 	"encoding/json"
 	"fmt"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api"
+	"github.com/recoilme/pudge"
 	"io/ioutil"
 	"log"
 )
 
-var config struct {
+type Config struct {
 	Token string
 }
+type UserName string
 
-func setUpConfig() {
+func getConfig() Config {
 	f, err := ioutil.ReadFile("config.json")
 	if err != nil {
 		log.Panic(err)
 	}
+	var config Config
 	err = json.Unmarshal(f, &config)
 	if err != nil {
 		log.Panic(err)
 	}
+	return config
 }
 
 func main() {
-	setUpConfig()
+	config := getConfig()
 	bot, err := tgbotapi.NewBotAPI(config.Token)
 	if err != nil {
 		log.Panic(err, fmt.Sprintf("\n token = %s", config.Token))
@@ -40,24 +44,48 @@ func main() {
 	if err != nil {
 		log.Panic(err)
 	}
+	rooms, err := pudge.Open("rooms", &pudge.Config{SyncInterval: 1})
+	if err != nil {
+		log.Panic(err)
+	}
+	defer rooms.Close()
+
+	type Room map[UserName]int
 	for update := range updates {
 		go func() {
+
 			if update.Message == nil {
 				return
 			}
 			if !update.Message.IsCommand() {
 				return
 			}
-			var text string
+			var room Room
+			_ = rooms.Get(update.Message.Chat.ID, &room)
+			user := update.Message.From
+			var result string
 			switch update.Message.Command() {
 			case "next":
-				text = "next"
+				cur := room[UserName(user.UserName)]
+				result = user.UserName
+				for k, v := range room {
+					if v < cur {
+						cur, result = v, string(k)
+					}
+				}
 			case "stat":
-				text = "stat"
+				if len(room) == 0 {
+					room[UserName(user.UserName)] = 0
+				}
+				for k, v := range room {
+					result += fmt.Sprintf("%v: %v\n", k, v)
+				}
 			case "drop":
-				text = "drop"
+				room[UserName(user.UserName)] += 1
+				result = "Dropped!"
 			}
-			msg := tgbotapi.NewMessage(update.Message.Chat.ID, text)
+			rooms.Set(update.Message.Chat.ID, &room)
+			msg := tgbotapi.NewMessage(update.Message.Chat.ID, result)
 			if _, err := bot.Send(msg); err != nil {
 				log.Panic(err)
 			}
